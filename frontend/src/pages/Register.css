@@ -1,0 +1,123 @@
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 50px;
+  background: linear-gradient(to right, #f3f4f6, #f9fafb, #f3f4f6);
+  min-height: 100vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  box-sizing: border-box;
+}
+
+.form-container {
+  width: 100%;
+  max-width: 900px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 40px;
+}
+
+.form-title {
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  font-family: "Inria Sans", sans-serif;
+  margin-bottom: 30px;
+}
+
+.register-wrapper {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.register-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.left-side {
+  border-right: 1px solid #e1e1e1;
+}
+
+.register-form label {
+  display: block;
+  margin: 10px 0 5px;
+  font-weight: 500;
+}
+
+.register-form input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.bottom-section {
+  width: 100%;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.submit-btn {
+  width: 50%;
+  padding: 12px;
+  background-color: #4caf50;
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submit-btn:hover {
+  background-color: #1e1e1e;
+}
+
+.switch-link {
+  margin-top: 12px;
+  font-size: 16px;
+}
+
+.switch-link a {
+  color: #6366f1;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+/* ✅ Responsive Styling */
+@media screen and (max-width: 768px) {
+  .register-container {
+    padding: 30px 20px;
+    align-items: flex-start;
+  }
+
+  .form-container {
+    padding: 24px;
+  }
+
+  .register-wrapper {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .left-side {
+    border-right: none;
+    border-bottom: 1px solid #e1e1e1;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+  }
+
+  .submit-btn {
+    width: 100%;
+  }
+}

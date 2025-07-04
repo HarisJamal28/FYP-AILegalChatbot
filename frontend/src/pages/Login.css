@@ -1,0 +1,134 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 50px;
+  background: linear-gradient(to right, #f3f4f6, #f9fafb, #f3f4f6);
+  min-height: 100vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  box-sizing: border-box;
+}
+
+.login-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 1000px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.login-image {
+  flex: 1 1 50%;
+  background: #1e1e1e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-image img {
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+}
+
+.login-form {
+  flex: 1 1 50%;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.login-form h2 {
+  margin-bottom: 30px;
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  font-family: "Inria Sans", sans-serif;
+}
+
+.login-form label {
+  display: block;
+  margin: 10px 0 5px;
+  font-weight: 500;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.login-form button {
+  width: 100%;
+  padding: 12px;
+  background-color: #4caf50;
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.login-form button:hover {
+  background-color: #1e1e1e;
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 16px;
+}
+
+.register-link a {
+  color: #6366f1;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+
+/* ✅ Responsive Design */
+@media screen and (max-width: 768px) {
+  .login-container {
+    align-items: flex-start;
+    padding: 40px 20px;
+    min-height: unset;
+  }
+
+  .login-wrapper {
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .login-image {
+    display: none;
+  }
+
+  .login-form {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 30px 24px;
+  }
+
+  .login-form h2 {
+    font-size: 24px;
+  }
+
+  .login-form input {
+    font-size: 16px;
+    padding: 10px;
+  }
+
+  .login-form button {
+    font-size: 16px;
+    padding: 10px;
+  }
+}

@@ -1,0 +1,42 @@
+$font: "Inria Sans", sans-serif;
+
+.navbar{
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #00BF63;
+    font-family: $font;
+    flex-direction: column;
+
+    img{
+        width: 100%;
+        height: 60vh;
+        object-fit: cover;
+    }
+
+    nav{
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: center;
+        // border: 1px solid #000;
+        width: 100%;
+        .nav-list{
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+            padding: 1rem;
+            li{
+                a{
+                    text-decoration: none;
+                    color: white;
+                    font-size: 1.2rem;
+                    &:hover{
+                        filter: brightness(0.8);
+                    }
+                }
+            }
+        }
+    }
+}

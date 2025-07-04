@@ -1,0 +1,158 @@
+/* Define the font variable */
+/* Overall container for Contact page */
+.contact-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-direction: column;
+  padding: 40px 0;
+}
+
+/* Main container for content */
+.contact-content-container {
+  display: flex;
+  flex-direction: column; /* Single column layout */
+  gap: 20px;
+  height: 100%;
+  width: 80%; /* Limit the width for a more centered layout */
+  max-width: 1200px;
+  background-color: transparent;
+  padding: 40px;
+  padding-top: 0px;
+  box-shadow: 0 0px 0px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+  overflow: hidden;
+}
+
+/* Main content area */
+.contact-main-content {
+  width: 100%;
+  text-align: left;
+  height: 100%;
+}
+
+/* Section Titles for Contact Information */
+.contact-main-content h1 {
+  font-size: 38px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 30px;
+  text-align: center;
+  font-family: "Inria Sans", sans-serif;
+  text-transform: uppercase; /* Uppercase style */
+  letter-spacing: 2px;
+}
+
+/* Paragraphs under headings */
+.contact-main-content p {
+  font-size: 18px;
+  line-height: 1.8;
+  color: #555;
+  margin-bottom: 25px;
+  text-align: justify; /* Justify text for neat appearance */
+  font-family: "Inria Sans", sans-serif;
+}
+
+/* Heading style for Contact Info section */
+.contact-info h2 {
+  font-size: 32px;
+  font-weight: 600;
+  color: #2e2e2e;
+  margin-top: 40px;
+  margin-bottom: 15px;
+  font-family: "Inria Sans", sans-serif;
+  position: relative; /* For underline effect */
+}
+
+/* Add a subtle underline effect to headings */
+.contact-info h2::after {
+  content: "";
+  position: absolute;
+  width: 50px;
+  height: 3px;
+  background-color: #4caf50; /* Blue underline */
+  bottom: -5px;
+  left: 0;
+}
+
+/* Contact Info list styling */
+.contact-info ul {
+  list-style-type: none;
+  padding-left: 0;
+  text-align: center;
+}
+
+.contact-info li {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 10px;
+  font-family: "Inria Sans", sans-serif;
+}
+
+/* Sidebar Section (Quick Links) */
+.contact-sidebar {
+  width: 30%; /* Takes up 30% of the width */
+  background-color: #1e1e1e;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  border-radius: 8px;
+}
+
+/* Sidebar heading */
+.contact-sidebar h2 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 15px;
+  font-family: "Inria Sans", sans-serif;
+}
+
+/* Sidebar paragraph */
+.contact-sidebar p {
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Contact Button Links */
+.contact-chat-now-btn {
+  padding: 12px 30px;
+  background-color: #6366f1;
+  color: white;
+  font-size: 16px;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+  align-self: center;
+  margin-bottom: 10px; /* Space between buttons */
+}
+
+.contact-chat-now-btn:hover {
+  background-color: #4f4bfa;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .contact-content-container {
+    width: 90%;
+    padding: 20px;
+  }
+  .contact-main-content h1 {
+    font-size: 30px;
+  }
+  .contact-info h2 {
+    font-size: 24px;
+  }
+  .contact-main-content p {
+    font-size: 16px;
+  }
+  .contact-sidebar {
+    width: 100%;
+    margin-top: 20px;
+  }
+}/*# sourceMappingURL=ContactLegal.css.map */
