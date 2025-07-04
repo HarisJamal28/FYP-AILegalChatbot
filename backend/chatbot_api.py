@@ -17,7 +17,7 @@ url = ["http://localhost:8000/ask", "http://localhost:8000/login", "http://local
 # MongoDB connection
 connection_string = os.getenv("MONGO_URI")
 client = MongoClient(connection_string)
-db = client["mentalhealth"]
+db = client["Legalhelp"]
 users_collection = db["users"]
 chats_collection = db["chats"]
 
@@ -92,32 +92,35 @@ def get_current_user(token: str):
 @app.post("/ask")
 def handle_question(input: Question, token: str = Depends(oauth2_scheme)):
     try:
-        if (input):
-            user_id = get_current_user(token)  # Get current user's ID from token
-        
-            # Save User Question to MongoDB
-            save_chat_to_mongodb(user_id, "user", input.question)
+        if input:
+            user_id = get_current_user(token)
             
-            # Response generator to stream chunks
+            # 🔥 Generate unique chat_name (timestamp or session-based)
+            chat_name = f"Chat-{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            # Save User Question
+            save_chat_to_mongodb(user_id, "user", input.question, chat_name)
+
             def response_stream():
                 response_generator = chain_with_memory.stream(
-                    {"query":input.question},
+                    {"query": input.question},
                     config={"configurable": {"session_id": user_id}}
                 )
                 response = ""
                 for chunk in response_generator:
                     response += chunk
-                    yield format_response(chunk)  # Send each chunk to the client
-                save_chat_to_mongodb(user_id, "assistant", response)  # Save the full response once streaming completes
-            
-            return StreamingResponse(response_stream(), media_type="text/plain")
+                    yield format_response(chunk)
 
+                # Save Assistant Response
+                save_chat_to_mongodb(user_id, "assistant", response, chat_name)
+
+            return StreamingResponse(response_stream(), media_type="text/plain")
         else:
             return JSONResponse(content={"response": "No question provided."})
     except Exception as e:
-        # Log the error for debugging purposes
         print(f"Error handling question: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Helper functions
 def create_access_token(data: dict, expires_delta: timedelta = None):

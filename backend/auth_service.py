@@ -1,5 +1,4 @@
 
-#/*----------------- Code Done for User credentials (Washma) -----------------------*/
 from flask_jwt_extended import create_access_token
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,7 +8,7 @@ connection_string = "mongodb://localhost:27017"
 def sign_up(email: str, password: str) -> str:
     hashed_password = generate_password_hash(password)
     with MongoClient(connection_string) as client:
-        users = client["mentalhealth"]["users"]
+        users = client["LegalHelp"]["users"]
         if users.find_one({"email": email}):
             return "User already exists. Please sign in."
         users.insert_one({"email": email, "password": hashed_password})
@@ -17,7 +16,7 @@ def sign_up(email: str, password: str) -> str:
 
 def sign_in(email: str, password: str) -> str:
     with MongoClient(connection_string) as client:
-        users = client["mentalhealth"]["users"]
+        users = client["LegalHelp"]["users"]
         user = users.find_one({"email": email})
         if not user:
             return "User not found. Please sign up."

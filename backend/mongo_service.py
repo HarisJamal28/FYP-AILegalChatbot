@@ -9,7 +9,7 @@ connection_string = os.getenv("MONGO_URI")
 
 chat_name =  f"Chat-{datetime.now().isoformat()}"
 
-def save_chat_to_mongodb(user_id, role, content):
+def save_chat_to_mongodb(user_id, role, content, chat_name):
     """
     Save a chat message in the MongoDB database.
 
@@ -20,32 +20,26 @@ def save_chat_to_mongodb(user_id, role, content):
     """
 
     with MongoClient(connection_string) as client:
-        chats = client["mentalhealth"]["chats"]
+        chats = client["Legalhelp"]["chats"]
         chat_data = {
             "user_id": user_id,
             "role": role,
             "content": content,
-            "chat_name": chat_name,  # Store the chat name
-            "timestamp": datetime.now()  # Store the timestamp
+            "chat_name": chat_name,
+            "timestamp": datetime.now()
         }
         chats.insert_one(chat_data)
 
 
-# Function to fetch chat history for a specific user
-def fetch_chat_from_mongodb(user_id: str):
-    """
-    Fetch chat history for a specific user from MongoDB.
-
-    Args:
-        user_id (str): The user's unique identifier.
-
-    Returns:
-        list: List of chat messages sorted by timestamp.
-    """
+def fetch_chat_from_mongodb(user_id: str, chat_name: str = None):
     with MongoClient(connection_string) as client:
+        query = {"user_id": user_id}
+        if chat_name:
+            query["chat_name"] = chat_name  # Only filter by chat_name if provided
+
         return list(
-            client["mentalhealth"]["chat"]
-            .find({"user_id": user_id, "chat_name": chat_name})
+            client["Legalhelp"]["chats"]
+            .find(query)
             .sort("timestamp", ASCENDING)
         )
 
@@ -55,9 +49,9 @@ def clean_chat_history(user_id: str):
     """
     with MongoClient(connection_string) as client:
         if user_id:
-            client["mentalhealth"]["chats"].delete_many({"user_id": user_id})
+            client["Legalhelp"]["chats"].delete_many({"user_id": user_id})
             print(f"Cleared chat history for user: {user_id}")
         else:
-            client["mentalhealth"]["chats"].delete_many(
+            client["Legalhelp"]["chats"].delete_many(
                 {"timestamp": {"$lt": datetime.now() - timedelta(days=30)}}
             )

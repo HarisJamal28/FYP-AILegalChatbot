@@ -1,96 +1,108 @@
 import os
+import glob
 import json
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from dotenv import load_dotenv
 from tqdm import tqdm
+from langchain.document_loaders import UnstructuredPDFLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.memory import ChatMessageHistory
 
+# Load environment variables (e.g. OpenAI API key)
 load_dotenv()
 
-def load_chunks(file_path):
+# === STEP 1: Load and Chunk PDFs into Vector Store ===
+def load_pdf_chunks():
     """
-    Loads data from a JSONL file, processes it into chunks, and stores it in a Chroma vector database.
-    
-    Args:
-        file_path (str): Path to the JSONL file containing the data.
+    Loads PDF files from the 'data' folder, processes them into chunks,
+    and stores them in a Chroma vector database.
     """
-    embeddings = OpenAIEmbeddings(
-        model='text-embedding-ada-002'  # embedding model
-    )
+    embeddings = OpenAIEmbeddings(model='text-embedding-ada-002')
     vectorstore = Chroma(
-        persist_directory="./mentalhealthdb",  # directory to store the vector database
+        persist_directory="./pakistanlawdb",
         embedding_function=embeddings,
-        collection_name="health"  # lowercase, no special characters
+        collection_name="law"
     )
     
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in tqdm(f, desc="Loading JSONL Data", unit="line"):
-            data = json.loads(line)
-            text_data = json.dumps(data)
-            vectorstore.add_texts([text_data])
+    # Load PDF files from the /data directory
+    pdf_files = glob.glob("data/*.pdf")
+    documents = []
+    for pdf in tqdm(pdf_files, desc="Loading PDF Files", unit="file"):
+        loader = UnstructuredPDFLoader(pdf)
+        documents.extend(loader.load())
+    
+    # Split documents into manageable text chunks
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    texts = text_splitter.split_documents(documents)
+    
+    # Add documents to Chroma vector store
+    vectorstore.add_documents(texts)
 
-# Load data only if the database does not exist
-if not os.path.exists("./mentalhealthdb"):
-    print("Loading data into the vector store...")
-    load_chunks("finetunedataset.jsonl")
+# Load PDF data into vector DB if not already done
+if not os.path.exists("./pakistanlawdb"):
+    print("Loading PDF data into the vector store...")
+    load_pdf_chunks()
 else:
     print("Vector store already exists. Skipping data loading.")
 
+# === STEP 2: Retrieve Relevant Context ===
 def retrieve_response():
     """
-    Retrieves the most relevant stored messages based on the query.
-
-    Args:
-        query (str): The user's query.
-        top_k (int): Number of most similar messages to retrieve.
-
-    Returns:
-        List of top-k retrieved messages.
+    Returns a retriever object that fetches relevant documents from the vector store.
     """
-    # Initialize the embeddings
-    embeddings = OpenAIEmbeddings(
-        model='text-embedding-ada-002'
-    )
-    
-    # Connect to the existing vector store
+    embeddings = OpenAIEmbeddings(model='text-embedding-ada-002')
     vectorstore = Chroma(
-        persist_directory="./mentalhealthdb",  # Same directory used in `load_chunks`
+        persist_directory="./pakistanlawdb",
         embedding_function=embeddings,
-        collection_name="health"  # Same collection name
+        collection_name="law"
     )
-    
-    # Perform similarity search
     return vectorstore.as_retriever()
 
+# === STEP 3: Format Documents (Optional) ===
 def format_docs(docs):
     """
-    Formats the retrieved documents into a single string.
-
-    Args:
-        docs (list): List of retrieved Document objects.
-
-    Returns:
-        str: Formatted string containing the content of the documents.
+    Joins retrieved documents into a formatted string.
     """
-    return "\n\n" .join(doc.page_content for doc in docs)
+    return "\n\n".join(doc.page_content for doc in docs)
 
+# === STEP 4: LLM Setup ===
 LLM = ChatOpenAI(model='gpt-4o-mini', temperature=0.7)
 retriever = retrieve_response()
+
+# === STEP 5: Prompt Template for Legal Assistant ===
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "The following is a conversation with a Mental Health Assistant. The assistant is empathetic, compassionate, and provides supportive responses. It is designed to help users manage stress, emotions, and mental health-related concerns. Keep the conversation good, you can talk in Roman Urdu language if user is talking in that otherwise continue with english and the conversation can be a bit casual if some user interacts with you casually but not so over that you asnwer unrelated questions OK and be human friendly, can have some hello, hi and goodbyes, etc, so that user can have a good experience. If any irrelevant question is asked, say 'I am here to assist with mental health concerns only.'"),
-    MessagesPlaceholder(variable_name="history"),  # Add history to the prompt
+    ("system", """
+You are a Legal Assistant specialized in Pakistan law. You must detect the user's language. If the user is asking in English, reply in English. If they use Urdu (either Roman Urdu or Urdu script), reply in the same language (Roman Urdu or Urdu script accordingly). Your goal is to help users understand legal issues clearly.
+
+Respond professionally and with empathy. Structure your answers with the following sections when applicable:
+
+- **Introduction**: Brief summary of the legal issue.
+- **Legal Provisions**: Relevant Pakistani laws or sections.
+- **Explanation**: How the law applies to this situation.
+- **Case Law**: Mention any landmark cases or judgments (optional).
+- **Conclusion**: Final opinion or recommendation.
+- **References**: Any legal sources cited.
+
+If someone asks an irrelevant question, say: "I am here to assist with Pakistan law-related concerns only."
+
+Use clear formatting like bold headings, bullet points, and line breaks to make your answer easy to read.
+"""),
+    MessagesPlaceholder(variable_name="history"),
     ("human", "{query}")
 ])
+
+
+# === STEP 6: Build Basic Chain ===
 chain = (prompt 
-        | LLM 
-        | StrOutputParser())
-# Store chat history for each session
+         | LLM 
+         | StrOutputParser())
+
+# === STEP 7: Chat History (Memory) Setup ===
 store = {}
 
 def get_session_history(session_id: str) -> BaseChatMessageHistory:
@@ -98,7 +110,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
 
-# Add memory to the chain
+# === STEP 8: Chain With Memory Support ===
 chain_with_memory = RunnableWithMessageHistory(
     chain,
     get_session_history,
