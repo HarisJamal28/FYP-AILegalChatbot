@@ -1,11 +1,10 @@
 # Chatbot-Project 🚀
 
 ## Project Overview
-This Chatbot is developed to assist people to feel good while sharing their feelings, emotions, their life experiences, if having some bad thoughts or some positive thoughts, it can provide support in that. Basically, the obejctive behind developing this chatbot was to help people who feel low, or overwhelmed in their lives due to the bad life experiences they had in their life due to which they feel stress, have tensions & depression or anxiety problems.
 
 ## Project Members
-1. Washma Tabassum - 21pwbcs0829
-2. Muhammad Usman - 21pwbcs0848
+1. Haris Jamal - 21pwbcs0874
+2. Ahsen Khalil - 21pwbcs0885
 
 ## Project Tech-Stack & Deployment
 ### 1. Tech Stack
