@@ -185,32 +185,6 @@ async def refresh_token(token: str):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token.")
 
-# @app.get("/chats", response_model=List[Chat])
-# async def get_chat_history(token: str = Depends(oauth2_scheme)):
-#     """
-#     Fetch chat history for a specific user from MongoDB.
-
-#     Args:
-#         token (str): The authentication token used to fetch the current user.
-
-#     Returns:
-#         list: List of chat sessions (chat_name, timestamp) for the given user.
-#     """
-#     try:
-#         # Get the user ID from the token
-#         user_id = get_current_user(token)  # Ensure this function works correctly
-        
-#         # Fetch chat history from MongoDB for the specific user
-#         chats = await chats_collection.find({"user_id": user_id})
-
-#         if not chats:
-#             raise HTTPException(status_code=404, detail="No chats found for this user")
-        
-#         # Return the chat history
-#         return chats
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.get("/chats", response_model=List[Chat])

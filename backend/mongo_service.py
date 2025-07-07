@@ -10,17 +10,14 @@ connection_string = os.getenv("MONGO_URI")
 chat_name =  f"Chat-{datetime.now().isoformat()}"
 
 def save_chat_to_mongodb(user_id, role, content, chat_name):
-    """
-    Save a chat message in the MongoDB database.
-
-    Args:
-        user_id (str): User's unique ID.
-        role (str): Role of the message sender ("user" or "assistant").
-        content (str): Message content.
-    """
+    print("📥 Entered save_chat_to_mongodb()")  # NEW LINE
 
     with MongoClient(connection_string) as client:
-        chats = client["Legalhelp"]["chats"]
+        db = client["Legalhelp"]                  # ✅ Assign the DB object
+        chats = db["chats"]                       # ✅ Use the DB object to get the collection
+
+        print(f"📂 Using Database: {db.name}")     # ✅ Log the DB name
+        print(f"📄 Using Collection: {chats.name}")# ✅ Log the Collection name 
         chat_data = {
             "user_id": user_id,
             "role": role,
@@ -28,7 +25,8 @@ def save_chat_to_mongodb(user_id, role, content, chat_name):
             "chat_name": chat_name,
             "timestamp": datetime.now()
         }
-        chats.insert_one(chat_data)
+        result = chats.insert_one(chat_data)
+        print(f"✅ Inserted with ID: {result.inserted_id}")  # UPDATE this line
 
 
 def fetch_chat_from_mongodb(user_id: str, chat_name: str = None):

@@ -7,12 +7,17 @@ export default function ChatbotPage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [chatSessions, setChatSessions] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
+
   const chatRef = useRef(null);
-  const navigate = useNavigate();
   const recognitionRef = useRef(null);
+  const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const token = JSON.parse(localStorage.getItem("userInfo"))?.accessToken;
 
+  // Load speech recognition
   useEffect(() => {
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
       const SpeechRecognition =
@@ -32,23 +37,17 @@ export default function ChatbotPage() {
       };
 
       recognitionRef.current = recognition;
-    } else {
-      alert("Your browser does not support speech recognition.");
     }
   }, []);
 
   const handleMicHold = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.start();
-      setIsRecording(true);
-    }
+    recognitionRef.current?.start();
+    setIsRecording(true);
   };
 
   const handleMicRelease = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-    }
+    recognitionRef.current?.stop();
+    setIsRecording(false);
   };
 
   const handleLogout = () => {
@@ -56,37 +55,68 @@ export default function ChatbotPage() {
     navigate("/");
   };
 
+  // Scroll to bottom
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [messages, isTyping]);
 
+  // Load chats from localStorage
   useEffect(() => {
     const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
-    const savedMessages = userInfo.chatMessages || [];
-    setMessages(
-      savedMessages.length > 0
-        ? savedMessages
-        : [
-            {
-              id: 1,
-              text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
-              sender: "bot",
-            },
-          ]
-    );
+    const token = userInfo?.accessToken;
+    const storedSessions = JSON.parse(localStorage.getItem(`sessions_${token}`)) || [];
+
+    setChatSessions(storedSessions);
+
+    if (storedSessions.length > 0) {
+      const latest = storedSessions[storedSessions.length - 1];
+      setMessages(latest.messages || []);
+      setActiveChatId(latest.id);
+    } else {
+      const welcome = [
+        {
+          id: 1,
+          text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
+          sender: "bot",
+        },
+      ];
+      createNewChat("Chat 1", welcome);
+    }
   }, []);
 
-  useEffect(() => {
-    const saveMessages = () => {
-      const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
-      userInfo.chatMessages = messages;
-      localStorage.setItem("userInfo", JSON.stringify(userInfo));
+  const createNewChat = (name = null, initMessages = []) => {
+    const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
+    const token = userInfo?.accessToken;
+    const timestamp = new Date().toISOString();
+    const id = `${Date.now()}`;
+
+    const newChat = {
+      id,
+      name: name || `Chat - ${new Date().toLocaleString()}`,
+      timestamp,
+      messages: initMessages,
     };
-    const debounce = setTimeout(saveMessages, 300);
-    return () => clearTimeout(debounce);
-  }, [messages]);
+
+    const updatedSessions = [...chatSessions, newChat];
+    setChatSessions(updatedSessions);
+    setMessages(initMessages);
+    setActiveChatId(id);
+    localStorage.setItem(`sessions_${token}`, JSON.stringify(updatedSessions));
+  };
+
+  const updateChatMessages = (newMessages) => {
+    const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
+    const token = userInfo?.accessToken;
+
+    const updated = chatSessions.map((session) =>
+      session.id === activeChatId ? { ...session, messages: newMessages } : session
+    );
+
+    setChatSessions(updated);
+    localStorage.setItem(`sessions_${token}`, JSON.stringify(updated));
+  };
 
   const sendMessage = async () => {
     if (input.trim() === "") return;
@@ -95,101 +125,152 @@ export default function ChatbotPage() {
       text: input,
       sender: "user",
     };
-    setMessages((prev) => [...prev, newMessage]);
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
+    updateChatMessages(updatedMessages);
     setInput("");
     setIsTyping(true);
     await fetchBotResponse(input);
     setIsTyping(false);
   };
 
-  const fetchBotResponse = async (question) => {
-    try {
-      const response = await fetch("http://127.0.0.1:8000/ask", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ question }),
-      });
+const fetchBotResponse = async (question) => {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/ask", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ question }),
+    });
 
-      if (!response.body) throw new Error("No response body");
+    if (!response.body) throw new Error("No response body");
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let botText = "";
-      let isFirstChunk = true;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let botText = "";
+    let isFirstChunk = true;
+    let tempMessages = [];
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        botText += decoder.decode(value, { stream: true });
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      botText += decoder.decode(value, { stream: true });
 
-        if (isFirstChunk) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: prev.length + 1,
-              text: botText,
-              sender: "bot",
-            },
-          ]);
-          isFirstChunk = false;
-        } else {
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1].text = botText;
-            return updated;
-          });
-        }
+      if (isFirstChunk) {
+        tempMessages = [
+          ...messages,
+          { id: messages.length + 1, text: botText, sender: "bot" },
+        ];
+        setMessages(tempMessages);
+        isFirstChunk = false;
+      } else {
+        tempMessages[tempMessages.length - 1].text = botText;
+        setMessages([...tempMessages]);
       }
-    } catch (err) {
-      console.error("Error:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          text: "Sorry, something went wrong.",
-          sender: "bot",
-        },
-      ]);
+    }
+
+    // 🔁 Update final chat to localStorage
+    updateChatMessages(tempMessages);
+  } catch (err) {
+    console.error("Error:", err);
+    const errorMessage = {
+      id: messages.length + 1,
+      text: "Sorry, something went wrong.",
+      sender: "bot",
+    };
+    const updated = [...messages, errorMessage];
+    setMessages(updated);
+    updateChatMessages(updated);
+  }
+};
+
+
+  const switchChat = (chatId) => {
+    const session = chatSessions.find((s) => s.id === chatId);
+    if (session) {
+      setActiveChatId(chatId);
+      setMessages(session.messages || []);
     }
   };
 
   return (
-    <div
-      className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50 border border-black font-sans"
-      style={{ fontFamily: "'Inria Sans'" }}
-    >
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50 border border-black font-sans">
       {/* Sidebar */}
-      <aside className="w-full md:w-[300px] flex-shrink-0 bg-green-600 text-white flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start px-4 py-2 md:px-0 md:py-0">
-        <div className="text-xl font-bold w-auto md:w-full py-2 md:py-4 px-0 md:px-4 border-b md:border-b border-green-700 whitespace-nowrap">
-          <i className="fas fa-gavel mr-2" />
-          <span className="hidden sm:inline">Your Legal Assistant</span>
+<aside className={`
+  bg-green-600 text-white flex flex-col fixed md:static z-50 h-full md:h-auto
+  top-0 left-0 transition-transform transform md:translate-x-0
+  ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+  w-4/5 max-w-[320px] md:w-[300px] px-4 py-2 md:px-0 md:py-0
+`}>
+  <div className="flex justify-between items-center md:block py-4 px-4 border-b border-green-700">
+    <div className="text-xl font-bold whitespace-nowrap">
+      <i className="fas fa-gavel mr-2" />
+      Your Legal Assistant
+    </div>
+    <button
+      className="md:hidden text-white text-xl"
+      onClick={() => setSidebarOpen(false)}
+    >
+      <i className="fas fa-times" />
+    </button>
+  </div>
+
+  <nav className="flex flex-col gap-4 w-full px-4 py-4 overflow-y-auto">
+    <button
+      className="w-full flex items-center gap-2 px-4 py-3 rounded-full bg-green-500 hover:bg-green-700 text-white text-sm"
+      onClick={() => createNewChat()}
+    >
+      <i className="fas fa-plus-circle" />
+      <span>New Chat</span>
+    </button>
+
+    {chatSessions.map((chat) => (
+      <button
+        key={chat.id}
+        onClick={() => switchChat(chat.id)}
+        className={`text-left px-3 py-2 rounded-lg ${
+          chat.id === activeChatId
+            ? "bg-green-700"
+            : "bg-green-500 hover:bg-green-600"
+        }`}
+      >
+        <div className="font-semibold">{chat.name}</div>
+        <div className="text-xs opacity-75">
+          {new Date(chat.timestamp).toLocaleString()}
         </div>
-        <nav className="flex flex-row md:flex-col gap-2 md:gap-4 w-auto md:w-full px-0 md:px-4 py-2 md:py-4">
-          <button className="w-auto md:w-full flex items-center gap-2 px-3 py-2 md:px-4 md:py-3 rounded-full bg-green-500 hover:bg-green-700 transition text-white text-sm">
-            <i className="fas fa-plus-circle" />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
-          <button className="w-auto md:w-full flex items-center gap-2 px-3 py-2 md:px-4 md:py-3 rounded-full bg-green-500 hover:bg-green-700 transition text-white text-sm">
-            <i className="fas fa-history" />
-            <span className="hidden sm:inline">History</span>
-          </button>
-        </nav>
-      </aside>
+      </button>
+    ))}
+  </nav>
+</aside>
+
+{/* Backdrop for overlay */}
+{sidebarOpen && (
+  <div
+    className="fixed inset-0 bg-black opacity-30 z-40 md:hidden"
+    onClick={() => setSidebarOpen(false)}
+  ></div>
+)}
 
       {/* Chat Area */}
       <main className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <header className="border-b border-gray-300 p-3 bg-white shadow-sm flex items-center">
-          <button
-            onClick={handleLogout}
-            className="ml-auto px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition"
-          >
-            Logout
-          </button>
-        </header>
+<header className="border-b border-gray-300 p-3 bg-white shadow-sm flex items-center justify-between">
+  <button
+    onClick={() => setSidebarOpen(!sidebarOpen)}
+    className="md:hidden text-green-700 text-xl"
+  >
+    <i className="fas fa-bars" />
+  </button>
+
+  <button
+    onClick={handleLogout}
+    className="ml-auto px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition"
+  >
+    Logout
+  </button>
+</header>
 
         {/* Messages */}
         <div
