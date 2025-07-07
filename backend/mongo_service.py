@@ -2,31 +2,43 @@
 
 from pymongo import MongoClient, ASCENDING
 from datetime import datetime, timedelta
+from bson import ObjectId
 import os
 
 # MongoDB connection string
 connection_string = os.getenv("MONGO_URI")
 
+# ✅ Global DB and collection reference
+client = MongoClient(connection_string)
+db = client["Legalhelp"]
+chats_collection = db["chats"]
+
 chat_name =  f"Chat-{datetime.now().isoformat()}"
 
-def save_chat_to_mongodb(user_id, role, content, chat_name):
-    print("📥 Entered save_chat_to_mongodb()")  # NEW LINE
+def save_chat_to_mongodb(user_id, sender, content, chat_name):
+    existing_chat = chats_collection.find_one({"user_id": user_id, "chat_name": chat_name})
+    timestamp = datetime.utcnow()
 
-    with MongoClient(connection_string) as client:
-        db = client["Legalhelp"]                  # ✅ Assign the DB object
-        chats = db["chats"]                       # ✅ Use the DB object to get the collection
+    message = {
+        "id": int(timestamp.timestamp() * 1000),  # Use timestamp as unique message ID
+        "sender": sender,
+        "text": content,
+    }
 
-        print(f"📂 Using Database: {db.name}")     # ✅ Log the DB name
-        print(f"📄 Using Collection: {chats.name}")# ✅ Log the Collection name 
-        chat_data = {
+    if existing_chat:
+        chats_collection.update_one(
+            {"_id": existing_chat["_id"]},
+            {"$push": {"messages": message}}
+        )
+    else:
+        new_chat = {
+            "id": str(ObjectId()),
             "user_id": user_id,
-            "role": role,
-            "content": content,
             "chat_name": chat_name,
-            "timestamp": datetime.now()
+            "timestamp": timestamp,
+            "messages": [message],
         }
-        result = chats.insert_one(chat_data)
-        print(f"✅ Inserted with ID: {result.inserted_id}")  # UPDATE this line
+        chats_collection.insert_one(new_chat)
 
 
 def fetch_chat_from_mongodb(user_id: str, chat_name: str = None):

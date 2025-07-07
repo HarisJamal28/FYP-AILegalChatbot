@@ -3,7 +3,7 @@ from flask_jwt_extended import create_access_token
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
 
-connection_string = "mongodb+srv://user1:123@cluster0.lxv3d.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+connection_string = "mongodb://localhost:27017"
 
 def sign_up(email: str, password: str) -> str:
     hashed_password = generate_password_hash(password)

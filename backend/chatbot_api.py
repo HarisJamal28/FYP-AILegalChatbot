@@ -4,22 +4,28 @@ from mongo_service import save_chat_to_mongodb, fetch_chat_from_mongodb
 from fastapi import FastAPI, HTTPException, Depends, requests
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Path
 from chatbot import chain_with_memory
 from fastapi.security import OAuth2PasswordBearer
 from werkzeug.security import generate_password_hash, check_password_hash
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
+from time import time
+from bson import ObjectId
 import os
 
+chat_id: Optional[str] = None
 
-url = ["http://localhost:8000/ask", "http://localhost:8000/login", "http://localhost:8000/signup", "http://localhost:8000/chats","http://localhost:8000/logout"]
+
+url = ["http://localhost:8000/ask", "http://localhost:8000/login", "http://localhost:8000/signup", "http://localhost:8000/chats","http://localhost:8000/chats/{chat_id}","http://localhost:8000/logout"]
 # MongoDB connection
 connection_string = os.getenv("MONGO_URI")
 client = MongoClient(connection_string)
 db = client["Legalhelp"]
 users_collection = db["users"]
 chats_collection = db["chats"]
+message_id = int(time() * 1000)
 
 # JWT Secret Key and Algorithm
 SECRET_KEY = "hdye83*gT$7yh@4G#8!3"
@@ -45,13 +51,20 @@ class Login(BaseModel):
 
 class Question(BaseModel):
     question: str
+    chat_id: Optional[str] = None  # 🔁 Accept chat_id from frontend
+
+
+class Message(BaseModel):
+    id: int
+    sender: str
+    text: str
 
 class Chat(BaseModel):
+    id: str
     user_id: str
-    role: str
-    content: str
     chat_name: str
     timestamp: str
+    messages: List[Message]
 
 app = FastAPI()
 
@@ -94,25 +107,50 @@ def handle_question(input: Question, token: str = Depends(oauth2_scheme)):
     try:
         if input:
             user_id = get_current_user(token)
-            
-            # 🔥 Generate unique chat_name (timestamp or session-based)
-            chat_name = f"Chat-{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+            chat_id = input.chat_id
 
-            # Save User Question
-            save_chat_to_mongodb(user_id, "user", input.question, chat_name)
+            if not chat_id:
+                chat_id = str(ObjectId())
+                chat_name = f"Chat-{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                chats_collection.insert_one({
+                    "id": chat_id,
+                    "user_id": user_id,
+                    "chat_name": chat_name,
+                    "timestamp": datetime.utcnow(),
+                    "messages": []
+                })
+
+            user_message = {
+                "id": int(time() * 1000),
+                "sender": "user",
+                "text": input.question
+            }
+
+            chats_collection.update_one(
+                {"id": chat_id, "user_id": user_id},
+                {"$push": {"messages": user_message}}
+            )
 
             def response_stream():
                 response_generator = chain_with_memory.stream(
                     {"query": input.question},
                     config={"configurable": {"session_id": user_id}}
                 )
-                response = ""
+                bot_response = ""
                 for chunk in response_generator:
-                    response += chunk
+                    bot_response += chunk
                     yield format_response(chunk)
 
-                # Save Assistant Response
-                save_chat_to_mongodb(user_id, "assistant", response, chat_name)
+                assistant_message = {
+                    "id": int(time() * 1000),
+                    "sender": "assistant",
+                    "text": bot_response
+                }
+
+                chats_collection.update_one(
+                    {"id": chat_id, "user_id": user_id},
+                    {"$push": {"messages": assistant_message}}
+                )
 
             return StreamingResponse(response_stream(), media_type="text/plain")
         else:
@@ -120,7 +158,6 @@ def handle_question(input: Question, token: str = Depends(oauth2_scheme)):
     except Exception as e:
         print(f"Error handling question: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # Helper functions
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -188,27 +225,67 @@ async def refresh_token(token: str):
 
 
 @app.get("/chats", response_model=List[Chat])
-async def get_chat_history(token: str = Depends(oauth2_scheme)):
+def get_chat_history(token: str = Depends(oauth2_scheme)):
     try:
-        # Decode token to get user ID
+        # Get the logged-in user's ID from the token
         user_id = get_current_user(token)
 
-        # Properly get chat list using to_list
-        chats = await chats_collection.find({"user_id": user_id}).to_list(length=100)
+        # Fetch chats belonging to the user
+        chats = list(chats_collection.find({"user_id": user_id}))
 
-        if not chats:
-            raise HTTPException(status_code=404, detail="No chats found for this user")
+        formatted_chats = []
 
-        # Optionally remove _id if Chat model doesn't support it
         for chat in chats:
+            # Ensure chat has a proper ID
+            chat["id"] = str(chat.get("id", chat.get("_id")))
+
+            # Remove Mongo's _id field for clean API
             chat.pop("_id", None)
 
-        return chats
+            # Convert timestamp to ISO string for frontend
+            if isinstance(chat.get("timestamp"), datetime):
+                chat["timestamp"] = chat["timestamp"].isoformat()
+
+            # Only include metadata (no need to send full messages unless needed)
+            formatted_chats.append({
+                "id": chat["id"],
+                "chat_name": chat["chat_name"],
+                "timestamp": chat["timestamp"],
+                "messages": chat.get("messages", []),  # include if needed
+                "user_id": chat["user_id"],
+                "role": chat.get("role", "user"),       # fallback
+                "content": chat.get("content", ""),     # fallback
+            })
+
+        return formatted_chats
 
     except Exception as e:
-        print("Error:", e)
+        print("Error fetching chats:", e)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
 
+@app.delete("/chats/{chat_id}")
+def delete_chat(
+    chat_id: str = Path(..., description="The ID of the chat to delete"),
+    token: str = Depends(oauth2_scheme)
+):
+    try:
+        user_id = get_current_user(token)
+
+        result = chats_collection.delete_one({
+            "id": chat_id,
+            "user_id": user_id  # Ensure users can only delete their own chats
+        })
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Chat not found or unauthorized")
+
+        return {"message": "Chat deleted successfully"}
+
+    except Exception as e:
+        print("Error deleting chat:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
     
 @app.post("/logout")
 async def logout(token: str = Depends(oauth2_scheme)):
@@ -217,3 +294,28 @@ async def logout(token: str = Depends(oauth2_scheme)):
     """
     # No real server-side invalidation unless using token blacklisting.
     return {"message": "Logged out successfully. Please delete the token on the client side."}
+
+@app.post("/chats", response_model=Chat)
+def create_chat(token: str = Depends(oauth2_scheme)):
+    try:
+        user_id = get_current_user(token)
+        chat_id = str(ObjectId())
+        chat_name = f"Chat-{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+        timestamp = datetime.utcnow()
+
+        new_chat = {
+            "id": chat_id,
+            "user_id": user_id,
+            "chat_name": chat_name,
+            "timestamp": timestamp,
+            "messages": [],
+        }
+
+        chats_collection.insert_one(new_chat)
+        new_chat["timestamp"] = new_chat["timestamp"].isoformat()  # for frontend
+        return new_chat
+
+    except Exception as e:
+        print("Error creating chat:", e)
+        raise HTTPException(status_code=500, detail="Failed to create new chat")
+

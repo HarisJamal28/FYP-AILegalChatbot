@@ -16,6 +16,58 @@ export default function ChatbotPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const token = JSON.parse(localStorage.getItem("userInfo"))?.accessToken;
+  const messagesRef = useRef([]);
+
+  useEffect(() => {
+  messagesRef.current = messages;
+}, [messages]);
+
+const deleteChat = async (chatId) => {
+  const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
+  const token = userInfo?.accessToken;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/chats/${chatId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to delete chat");
+    }
+
+    // If successful, update the frontend state and localStorage
+    const updated = chatSessions.filter((s) => s.id !== chatId);
+    setChatSessions(updated);
+    localStorage.setItem(`sessions_${token}`, JSON.stringify(updated));
+
+    if (chatId === activeChatId) {
+      if (updated.length > 0) {
+        setMessages(updated[0].messages || []);
+        setActiveChatId(updated[0].id);
+      } else {
+        const welcome = [
+          {
+            id: 1,
+            text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
+            sender: "bot",
+          },
+        ];
+        createNewChat("Chat 1", welcome);
+      }
+    }
+  } catch (err) {
+    console.error("Error deleting chat:", err.message);
+    alert("Failed to delete chat. Please try again.");
+  }
+};
+
+
+
+
 
   // Load speech recognition
   useEffect(() => {
@@ -62,49 +114,72 @@ export default function ChatbotPage() {
     }
   }, [messages, isTyping]);
 
-  // Load chats from localStorage
-  useEffect(() => {
+
+useEffect(() => {
+  const fetchChats = async () => {
     const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
     const token = userInfo?.accessToken;
-    const storedSessions = JSON.parse(localStorage.getItem(`sessions_${token}`)) || [];
 
-    setChatSessions(storedSessions);
+    try {
+      const response = await fetch("http://127.0.0.1:8000/chats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (storedSessions.length > 0) {
-      const latest = storedSessions[storedSessions.length - 1];
-      setMessages(latest.messages || []);
-      setActiveChatId(latest.id);
-    } else {
-      const welcome = [
-        {
-          id: 1,
-          text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
-          sender: "bot",
-        },
-      ];
-      createNewChat("Chat 1", welcome);
+      if (!response.ok) throw new Error("Failed to fetch chat history");
+
+      const chats = await response.json();
+      setChatSessions(chats);
+
+      if (chats.length > 0) {
+        // pick latest or last used
+        const latest = chats[chats.length - 1];
+        setActiveChatId(latest.id);
+        setMessages(latest.messages || []);
+      } else {
+        // 🧠 DO NOT CREATE CHAT HERE! Just wait for user input or New Chat click
+        setMessages([
+          {
+            id: 1,
+            text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
+            sender: "bot",
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching chats:", error);
     }
-  }, []);
-
-  const createNewChat = (name = null, initMessages = []) => {
-    const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
-    const token = userInfo?.accessToken;
-    const timestamp = new Date().toISOString();
-    const id = `${Date.now()}`;
-
-    const newChat = {
-      id,
-      name: name || `Chat - ${new Date().toLocaleString()}`,
-      timestamp,
-      messages: initMessages,
-    };
-
-    const updatedSessions = [...chatSessions, newChat];
-    setChatSessions(updatedSessions);
-    setMessages(initMessages);
-    setActiveChatId(id);
-    localStorage.setItem(`sessions_${token}`, JSON.stringify(updatedSessions));
   };
+
+  fetchChats();
+}, []);
+
+
+
+const createNewChat = async (name, initMessages = []) => {
+  const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
+  const token = userInfo?.accessToken;
+
+  const response = await fetch("http://127.0.0.1:8000/chats", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_name: name,
+      messages: initMessages,
+    }),
+  });
+
+  const newChat = await response.json();
+  const updated = [...chatSessions, newChat];
+  setChatSessions(updated);
+  setMessages(initMessages);
+  setActiveChatId(newChat.id);
+  return newChat;
+};
+
+
 
   const updateChatMessages = (newMessages) => {
     const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
@@ -118,21 +193,34 @@ export default function ChatbotPage() {
     localStorage.setItem(`sessions_${token}`, JSON.stringify(updated));
   };
 
-  const sendMessage = async () => {
-    if (input.trim() === "") return;
-    const newMessage = {
-      id: messages.length + 1,
-      text: input,
-      sender: "user",
-    };
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-    updateChatMessages(updatedMessages);
-    setInput("");
-    setIsTyping(true);
-    await fetchBotResponse(input);
-    setIsTyping(false);
+const sendMessage = async () => {
+  if (input.trim() === "") return;
+
+  const newMessage = {
+    id: Date.now(),
+    text: input,
+    sender: "user",
   };
+
+  let updatedMessages = [...messages, newMessage];
+
+  setMessages(updatedMessages);
+  setInput("");
+  setIsTyping(true);
+
+  // 🧠 Create new chat on first message only if no active chat
+  if (!activeChatId) {
+    const name = `Chat - ${new Date().toLocaleString()}`;
+    const newChat = await createNewChat(name, updatedMessages);
+    setActiveChatId(newChat.id); // backend ID
+  } else {
+    updateChatMessages(updatedMessages); // just update local state
+  }
+
+  await fetchBotResponse(input);
+  setIsTyping(false);
+};
+
 
 const fetchBotResponse = async (question) => {
   try {
@@ -142,7 +230,10 @@ const fetchBotResponse = async (question) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({
+        question,
+        chat_id: activeChatId,  // 🔁 ✅ Include chat_id here
+      }),
     });
 
     if (!response.body) throw new Error("No response body");
@@ -159,9 +250,10 @@ const fetchBotResponse = async (question) => {
       botText += decoder.decode(value, { stream: true });
 
       if (isFirstChunk) {
+        const currentMessages = [...messagesRef.current];
         tempMessages = [
-          ...messages,
-          { id: messages.length + 1, text: botText, sender: "bot" },
+          ...currentMessages,
+          { id: currentMessages.length + 1, text: botText, sender: "bot" },
         ];
         setMessages(tempMessages);
         isFirstChunk = false;
@@ -171,8 +263,7 @@ const fetchBotResponse = async (question) => {
       }
     }
 
-    // 🔁 Update final chat to localStorage
-    updateChatMessages(tempMessages);
+    updateChatMessages(tempMessages); // 🔁 Save final chat messages locally
   } catch (err) {
     console.error("Error:", err);
     const errorMessage = {
@@ -187,13 +278,15 @@ const fetchBotResponse = async (question) => {
 };
 
 
-  const switchChat = (chatId) => {
-    const session = chatSessions.find((s) => s.id === chatId);
-    if (session) {
-      setActiveChatId(chatId);
-      setMessages(session.messages || []);
-    }
-  };
+
+const switchChat = (chatId) => {
+  const selectedChat = chatSessions.find((c) => c.id === chatId);
+  if (selectedChat) {
+    setActiveChatId(chatId);
+    setMessages(selectedChat.messages || []);
+  }
+};
+
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50 border border-black font-sans">
@@ -226,22 +319,36 @@ const fetchBotResponse = async (question) => {
       <span>New Chat</span>
     </button>
 
-    {chatSessions.map((chat) => (
-      <button
-        key={chat.id}
-        onClick={() => switchChat(chat.id)}
-        className={`text-left px-3 py-2 rounded-lg ${
-          chat.id === activeChatId
-            ? "bg-green-700"
-            : "bg-green-500 hover:bg-green-600"
-        }`}
-      >
-        <div className="font-semibold">{chat.name}</div>
-        <div className="text-xs opacity-75">
-          {new Date(chat.timestamp).toLocaleString()}
-        </div>
-      </button>
-    ))}
+{chatSessions.map((chat) => (
+  <div
+    key={chat.id}
+    className={`flex justify-between items-center px-3 py-2 rounded-lg ${
+      chat.id === activeChatId
+        ? "bg-green-700"
+        : "bg-green-500 hover:bg-green-600"
+    }`}
+  >
+    <div
+      className="flex flex-col flex-grow cursor-pointer"
+      onClick={() => switchChat(chat.id)}
+    >
+      <div className="font-semibold">{chat.name}</div>
+      <div className="text-xs opacity-75">
+        {new Date(chat.timestamp).toLocaleString()}
+      </div>
+    </div>
+<button
+  onClick={() => deleteChat(chat.id)}
+  className="ml-2 text-white hover:text-red-300 transition"
+  title="Delete Chat"
+>
+  <i className="fas fa-trash-alt" />
+</button>
+  </div>
+))}
+
+
+
   </nav>
 </aside>
 
