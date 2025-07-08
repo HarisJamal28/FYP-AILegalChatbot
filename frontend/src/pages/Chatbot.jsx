@@ -17,6 +17,7 @@ export default function ChatbotPage() {
 
   const token = JSON.parse(localStorage.getItem("userInfo"))?.accessToken;
   const messagesRef = useRef([]);
+  
 
   useEffect(() => {
   messagesRef.current = messages;
@@ -64,10 +65,6 @@ const deleteChat = async (chatId) => {
     alert("Failed to delete chat. Please try again.");
   }
 };
-
-
-
-
 
   // Load speech recognition
   useEffect(() => {
@@ -159,6 +156,17 @@ const createNewChat = async (name, initMessages = []) => {
   const userInfo = JSON.parse(localStorage.getItem("userInfo")) || {};
   const token = userInfo?.accessToken;
 
+  // 👇 Use welcome message if initMessages is empty
+  const defaultWelcome = [
+    {
+      id: 1,
+      text: "Welcome to AI Legal Chatbot!📜 What Legal Query Can I assist you with Today?",
+      sender: "bot",
+    },
+  ];
+
+  const messagesToUse = initMessages.length > 0 ? initMessages : defaultWelcome;
+
   const response = await fetch("http://127.0.0.1:8000/chats", {
     method: "POST",
     headers: {
@@ -167,14 +175,14 @@ const createNewChat = async (name, initMessages = []) => {
     },
     body: JSON.stringify({
       chat_name: name,
-      messages: initMessages,
+      messages: messagesToUse,
     }),
   });
 
   const newChat = await response.json();
   const updated = [...chatSessions, newChat];
   setChatSessions(updated);
-  setMessages(initMessages);
+  setMessages(messagesToUse);
   setActiveChatId(newChat.id);
   return newChat;
 };
@@ -298,7 +306,7 @@ const switchChat = (chatId) => {
   w-4/5 max-w-[320px] md:w-[300px] px-4 py-2 md:px-0 md:py-0
 `}>
   <div className="flex justify-between items-center md:block py-4 px-4 border-b border-green-700">
-    <div className="text-xl font-bold whitespace-nowrap">
+    <div className="text-l font-bold whitespace-nowrap">
       <i className="fas fa-gavel mr-2" />
       Your Legal Assistant
     </div>
@@ -312,7 +320,7 @@ const switchChat = (chatId) => {
 
   <nav className="flex flex-col gap-4 w-full px-4 py-4 overflow-y-auto">
     <button
-      className="w-full flex items-center gap-2 px-4 py-3 rounded-full bg-green-500 hover:bg-green-700 text-white text-sm"
+      className="w-full flex items-center gap-2 px-4 py-3 rounded-lg bg-green-500 hover:bg-green-700 text-white text-sm"
       onClick={() => createNewChat()}
     >
       <i className="fas fa-plus-circle" />
@@ -444,10 +452,6 @@ const switchChat = (chatId) => {
     </div>
   </div>
 ))}
-
-
-
-
           {isTyping && (
             <div className="w-full flex justify-start">
               <div className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-xl animate-pulse">
